@@ -1,15 +1,26 @@
 """Trade notifications.
 
+``TelegramNotifier`` (default) sends messages through the Telegram Bot API.
 ``WhatsAppNotifier`` sends messages through Twilio's WhatsApp API.
 ``ConsoleNotifier`` is the no-credentials fallback.
 
-Twilio WhatsApp setup (one-time, ~5 minutes):
+Telegram setup (one-time, ~3 minutes):
+1. On Telegram, message @BotFather -> /newbot -> follow prompts -> copy the bot token
+2. Message @userinfobot -> it replies with your chat ID
+3. Send any message to your new bot (bots can't message you first)
+4. Put in .env:
+     LQ_NOTIFICATIONS_ENABLED=true
+     TELEGRAM_BOT_TOKEN=123456789:ABC...
+     TELEGRAM_CHAT_ID=123456789
+
+WhatsApp setup (alternative, via Twilio sandbox):
 1. Create a free Twilio account: https://www.twilio.com/try-twilio
 2. Console -> Messaging -> Try it out -> Send a WhatsApp message
 3. Follow the sandbox instructions: send the join code from your phone
    to the sandbox number (+1 415 523 8886)
 4. Put in .env:
      LQ_NOTIFICATIONS_ENABLED=true
+     LQ_NOTIFICATION_CHANNEL=whatsapp
      TWILIO_ACCOUNT_SID=ACxxxxxxxx
      TWILIO_AUTH_TOKEN=xxxxxxxx
      TWILIO_WHATSAPP_FROM=whatsapp:+14155238886
@@ -73,6 +84,48 @@ class ConsoleNotifier(Notifier):
         return True
 
 
+class TelegramNotifier(Notifier):
+    """Telegram messages via the Bot API (free, no third-party account needed)."""
+
+    def __init__(self) -> None:
+        settings = get_settings()
+        if not (settings.telegram_bot_token and settings.telegram_chat_id):
+            raise RuntimeError("Telegram credentials not configured (TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID)")
+        token = settings.telegram_bot_token.get_secret_value()
+        self._chat_id = settings.telegram_chat_id
+        self._url = f"https://api.telegram.org/bot{token}/sendMessage"
+
+    def send(self, message: str) -> bool:
+        try:
+            response = httpx.post(
+                self._url,
+                json={
+                    "chat_id": self._chat_id,
+                    "text": message,
+                    "parse_mode": "Markdown",
+                },
+                timeout=10.0,
+            )
+            if response.status_code == 200:
+                return True
+            # Markdown parse errors (e.g. unescaped chars in symbols) -> retry as plain text
+            if response.status_code == 400:
+                retry = httpx.post(
+                    self._url,
+                    json={"chat_id": self._chat_id, "text": message},
+                    timeout=10.0,
+                )
+                if retry.status_code == 200:
+                    return True
+            logger.error(
+                "[notify] Telegram error %d: %s", response.status_code, response.text[:200]
+            )
+            return False
+        except httpx.HTTPError as e:
+            logger.error("[notify] Telegram send failed: %s", e)
+            return False
+
+
 class WhatsAppNotifier(Notifier):
     """WhatsApp messages via the Twilio REST API."""
 
@@ -122,15 +175,20 @@ class MultiNotifier(Notifier):
 
 
 def create_notifier() -> Notifier:
-    """Create the configured notifier (WhatsApp + console, or console only)."""
+    """Create the configured notifier (Telegram/WhatsApp + console, or console only)."""
     settings = get_settings()
     channels: list[Notifier] = [ConsoleNotifier()]
     if settings.notifications_enabled:
         try:
-            channels.append(WhatsAppNotifier())
-            logger.info("WhatsApp notifications enabled")
+            if settings.notification_channel == "telegram":
+                channels.append(TelegramNotifier())
+                logger.info("Telegram notifications enabled")
+            else:
+                channels.append(WhatsAppNotifier())
+                logger.info("WhatsApp notifications enabled")
         except Exception as e:
-            logger.warning("WhatsApp notifier unavailable (%s); console only", e)
+            logger.warning("%s notifier unavailable (%s); console only",
+                           settings.notification_channel, e)
     return MultiNotifier(channels) if len(channels) > 1 else channels[0]
 
 

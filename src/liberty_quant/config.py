@@ -109,9 +109,24 @@ class Settings(BaseSettings):
     )
 
     # ===========================================
-    # Notifications (WhatsApp via Twilio)
+    # Notifications
     # ===========================================
     notifications_enabled: bool = Field(default=False, alias="LQ_NOTIFICATIONS_ENABLED")
+    notification_channel: Literal["telegram", "whatsapp"] = Field(
+        default="telegram",
+        alias="LQ_NOTIFICATION_CHANNEL",
+        description="Which channel to send alerts through",
+    )
+
+    # --- Telegram (default channel) ---
+    telegram_bot_token: SecretStr | None = Field(
+        default=None, description="Telegram bot token from @BotFather"
+    )
+    telegram_chat_id: str | None = Field(
+        default=None, description="Your Telegram chat ID (from @userinfobot)"
+    )
+
+    # --- WhatsApp via Twilio (alternative channel) ---
     twilio_account_sid: str | None = Field(default=None, description="Twilio account SID")
     twilio_auth_token: SecretStr | None = Field(default=None, description="Twilio auth token")
     twilio_whatsapp_from: str | None = Field(
@@ -142,19 +157,23 @@ class Settings(BaseSettings):
                 f"LQ_MAX_POSITION_PCT ({self.max_position_pct})"
             )
         if self.notifications_enabled:
-            missing = [
-                name
-                for name, value in (
+            if self.notification_channel == "telegram":
+                required = (
+                    ("TELEGRAM_BOT_TOKEN", self.telegram_bot_token),
+                    ("TELEGRAM_CHAT_ID", self.telegram_chat_id),
+                )
+            else:  # whatsapp
+                required = (
                     ("TWILIO_ACCOUNT_SID", self.twilio_account_sid),
                     ("TWILIO_AUTH_TOKEN", self.twilio_auth_token),
                     ("TWILIO_WHATSAPP_FROM", self.twilio_whatsapp_from),
                     ("WHATSAPP_TO", self.whatsapp_to),
                 )
-                if not value
-            ]
+            missing = [name for name, value in required if not value]
             if missing:
                 raise ValueError(
-                    f"LQ_NOTIFICATIONS_ENABLED=true requires: {', '.join(missing)}"
+                    f"LQ_NOTIFICATIONS_ENABLED=true with channel={self.notification_channel} "
+                    f"requires: {', '.join(missing)}"
                 )
         Path(self.db_path).parent.mkdir(parents=True, exist_ok=True)
         return self

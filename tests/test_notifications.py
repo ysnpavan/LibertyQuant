@@ -74,8 +74,91 @@ def test_create_notifier_console_only_by_default():
     assert isinstance(notifier, ConsoleNotifier)
 
 
+def test_telegram_notifier_posts_to_bot_api(monkeypatch, tmp_path):
+    monkeypatch.setenv("LQ_NOTIFICATIONS_ENABLED", "true")
+    monkeypatch.setenv("LQ_NOTIFICATION_CHANNEL", "telegram")
+    monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "123456:test-token")
+    monkeypatch.setenv("TELEGRAM_CHAT_ID", "987654321")
+    monkeypatch.setenv("LQ_DB_PATH", str(tmp_path / "t.db"))
+
+    from liberty_quant.config import reload_settings
+    reload_settings()
+
+    from liberty_quant.notifications.notifier import TelegramNotifier
+
+    class FakeResponse:
+        status_code = 200
+        text = "ok"
+
+    captured = {}
+
+    def fake_post(url, **kwargs):
+        captured["url"] = url
+        captured["json"] = kwargs["json"]
+        return FakeResponse()
+
+    with patch("liberty_quant.notifications.notifier.httpx.post", side_effect=fake_post):
+        notifier = TelegramNotifier()
+        assert notifier.send("*BUY* 10 NVDA") is True
+
+    assert "api.telegram.org/bot123456:test-token/sendMessage" in captured["url"]
+    assert captured["json"]["chat_id"] == "987654321"
+    assert captured["json"]["text"] == "*BUY* 10 NVDA"
+    assert captured["json"]["parse_mode"] == "Markdown"
+
+
+def test_telegram_retries_as_plain_text_on_markdown_error(monkeypatch, tmp_path):
+    monkeypatch.setenv("LQ_NOTIFICATIONS_ENABLED", "true")
+    monkeypatch.setenv("LQ_NOTIFICATION_CHANNEL", "telegram")
+    monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "123456:test-token")
+    monkeypatch.setenv("TELEGRAM_CHAT_ID", "987654321")
+    monkeypatch.setenv("LQ_DB_PATH", str(tmp_path / "t.db"))
+
+    from liberty_quant.config import reload_settings
+    reload_settings()
+
+    from liberty_quant.notifications.notifier import TelegramNotifier
+
+    calls = []
+
+    def fake_post(url, **kwargs):
+        calls.append(kwargs["json"])
+
+        class Response:
+            # First (markdown) call fails with 400, plain-text retry succeeds
+            status_code = 400 if "parse_mode" in kwargs["json"] else 200
+            text = "Bad Request: can't parse entities"
+
+        return Response()
+
+    with patch("liberty_quant.notifications.notifier.httpx.post", side_effect=fake_post):
+        notifier = TelegramNotifier()
+        assert notifier.send("BRK.B_breakout *") is True
+
+    assert len(calls) == 2
+    assert "parse_mode" not in calls[1]
+
+
+def test_create_notifier_picks_telegram_channel(monkeypatch, tmp_path):
+    monkeypatch.setenv("LQ_NOTIFICATIONS_ENABLED", "true")
+    monkeypatch.setenv("LQ_NOTIFICATION_CHANNEL", "telegram")
+    monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "123456:test-token")
+    monkeypatch.setenv("TELEGRAM_CHAT_ID", "987654321")
+    monkeypatch.setenv("LQ_DB_PATH", str(tmp_path / "t.db"))
+
+    from liberty_quant.config import reload_settings
+    reload_settings()
+
+    from liberty_quant.notifications.notifier import TelegramNotifier
+
+    notifier = create_notifier()
+    assert isinstance(notifier, MultiNotifier)
+    assert any(isinstance(n, TelegramNotifier) for n in notifier.notifiers)
+
+
 def test_whatsapp_notifier_posts_to_twilio(monkeypatch, tmp_path):
     monkeypatch.setenv("LQ_NOTIFICATIONS_ENABLED", "true")
+    monkeypatch.setenv("LQ_NOTIFICATION_CHANNEL", "whatsapp")
     monkeypatch.setenv("TWILIO_ACCOUNT_SID", "AC_test")
     monkeypatch.setenv("TWILIO_AUTH_TOKEN", "token_test")
     monkeypatch.setenv("TWILIO_WHATSAPP_FROM", "whatsapp:+14155238886")

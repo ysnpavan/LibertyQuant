@@ -345,7 +345,10 @@ def main() -> int:
     console.print(f"Fast model     : {settings.model_fast} (effort={settings.fast_effort})")
     console.print(f"Cycle interval : {settings.cycle_seconds}s")
     console.print(f"Memory         : {'enabled' if settings.memory_enabled else 'disabled'}")
-    console.print(f"Notifications  : {'WhatsApp' if settings.notifications_enabled else 'console only'}")
+    console.print(
+        f"Notifications  : "
+        f"{settings.notification_channel if settings.notifications_enabled else 'console only'}"
+    )
     console.rule()
 
     system = TradingSystem()

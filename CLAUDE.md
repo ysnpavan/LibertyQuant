@@ -2,7 +2,7 @@
 
 ## What this is
 
-Agentic US-market paper-trading system: market data → technical signals → LangGraph pipeline of Claude agents (regime → strategy → validation → risk) → Alpaca paper execution → exit management (stops/trailing/EOD) → learning loop (Opus post-mortems → lessons) → SQLite journal + WhatsApp notifications.
+Agentic US-market paper-trading system: market data → technical signals → LangGraph pipeline of Claude agents (regime → strategy → validation → risk) → Alpaca paper execution → exit management (stops/trailing/EOD) → learning loop (Opus post-mortems → lessons) → SQLite journal + Telegram/WhatsApp notifications.
 
 ## Commands
 

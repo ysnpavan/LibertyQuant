@@ -38,9 +38,9 @@ Inspired by [RakshaQuant](https://github.com/HimanshuMohanty-Git24/RakshaQuant) 
                              ▼
 ┌─────────────────────────────────────────────────────────────────┐
 │ LEARNING LOOP                              📱 NOTIFICATIONS      │
-│  Closed trade → Opus post-mortem →            WhatsApp (Twilio)  │
-│  mistake classification → lesson →            fills, exits,      │
-│  injected into future agent cycles            kill switch, EOD   │
+│  Closed trade → Opus post-mortem →            Telegram (default) │
+│  mistake classification → lesson →            or WhatsApp:       │
+│  injected into future agent cycles            fills, exits, EOD  │
 └──────────────────────────────────────────────────────────────────┘
 ```
 
@@ -123,7 +123,8 @@ All knobs live in `.env` (see `.env.example`):
 | `LQ_EOD_FLATTEN_MINUTES` | `10` | Minutes before close to start flattening |
 | `LQ_MEMORY_ENABLED` | `true` | Learn from closed trades and inject lessons |
 | `LQ_MEMORY_TOP_N` | `5` | Lessons injected per agent per cycle |
-| `LQ_NOTIFICATIONS_ENABLED` | `false` | WhatsApp alerts via Twilio (see `.env.example`) |
+| `LQ_NOTIFICATIONS_ENABLED` | `false` | Push alerts to your phone (see below) |
+| `LQ_NOTIFICATION_CHANNEL` | `telegram` | `telegram` or `whatsapp` |
 
 ## Cost expectations
 
@@ -135,14 +136,27 @@ With default settings (60s cycle, ~6.5 trading hours/day ≈ 390 cycles):
 
 Expect roughly **$3–10/day** of API usage depending on market activity. Reduce by raising `LQ_CYCLE_SECONDS` or setting `LQ_MODEL_DEEP=claude-sonnet-4-6`.
 
-## WhatsApp notifications setup (optional, ~5 min)
+## Telegram notifications setup (optional, ~3 min)
 
-1. Create a free Twilio account: https://www.twilio.com/try-twilio
-2. Console → **Messaging → Try it out → Send a WhatsApp message**
-3. From your phone, send the join code shown there to **+1 415 523 8886** on WhatsApp
-4. In `.env`, set `LQ_NOTIFICATIONS_ENABLED=true` plus the four `TWILIO_*`/`WHATSAPP_TO` values
+1. On Telegram, message **@BotFather** → `/newbot` → follow the prompts → copy the **bot token**
+2. Message **@userinfobot** → it replies with your **chat ID**
+3. Send any message to your new bot once (bots can't message you first)
+4. In `.env`:
+   ```
+   LQ_NOTIFICATIONS_ENABLED=true
+   TELEGRAM_BOT_TOKEN=123456789:ABC...
+   TELEGRAM_CHAT_ID=123456789
+   ```
 
-You'll get WhatsApp messages for: every fill, every position close (with P&L), kill-switch events, and a daily summary at the close.
+You'll get Telegram messages for: every fill, every position close (with P&L), kill-switch events, and a daily summary at the close.
+
+<details>
+<summary>Alternative: WhatsApp via Twilio</summary>
+
+1. Free Twilio account → Console → Messaging → Try it out → Send a WhatsApp message
+2. Join the sandbox from your phone (send the join code to +1 415 523 8886)
+3. In `.env`: `LQ_NOTIFICATION_CHANNEL=whatsapp` plus the four `TWILIO_*`/`WHATSAPP_TO` values from `.env.example`
+</details>
 
 ## Roadmap (Phase 3)
 
