@@ -2,7 +2,7 @@
 
 ## What this is
 
-Agentic US-market paper-trading system: market data → technical signals → LangGraph pipeline of Claude agents (regime → strategy → validation → risk) → Alpaca paper execution → SQLite journal.
+Agentic US-market paper-trading system: market data → technical signals → LangGraph pipeline of Claude agents (regime → strategy → validation → risk) → Alpaca paper execution → exit management (stops/trailing/EOD) → learning loop (Opus post-mortems → lessons) → SQLite journal + WhatsApp notifications.
 
 ## Commands
 
@@ -21,8 +21,10 @@ uv run ruff check src tests       # lint
 - **All Anthropic API calls go through `src/liberty_quant/llm.py`** (`AgentLLM.structured_call`). Never call the SDK directly from agent nodes.
 - **Agent outputs are Pydantic schemas** (`agents/schemas.py`) parsed via `messages.parse()`. Never parse JSON from text.
 - **System prompts are frozen** (`agents/prompts.py`) — no f-strings, no timestamps, no per-cycle data. Volatile context goes in the user message. This preserves prompt caching.
-- **Fail-safe principle**: any LLM failure must result in *fewer* trades, never more. Validation failure → reject all. Risk failure → deny all. Deterministic hard limits (`_hard_risk_checks`) run before the risk agent and are non-negotiable.
-- **Model routing**: `deep=True` → Opus (validation, risk); `deep=False` → Sonnet (regime, strategy). Configured in `.env`, defaults in `config.py`.
+- **Fail-safe principle**: any LLM failure must result in *fewer* trades, never more. Validation failure → reject all. Risk failure → deny all. Deterministic hard limits (`_hard_risk_checks`) run before the risk agent and are non-negotiable. Learning/notification failures must never break the trading loop.
+- **Model routing**: `deep=True` → Opus (validation, risk, post-mortems); `deep=False` → Sonnet (regime, strategy). Configured in `.env`, defaults in `config.py`.
+- **Exits run before entries** in every cycle (`TradingSystem.run_cycle`). Every filled BUY is registered with the `ExitManager`; positions are never left unmanaged.
+- **Lessons flow**: closed trade → `TradeLearner.process_closed_trade` → (if loss/stop-out) Opus post-mortem → lesson in `MemoryStore` → `get_lessons_for_agents` routes by category → injected into agent user content (never the system prompt).
 
 ## Conventions
 

@@ -17,30 +17,41 @@ Inspired by [RakshaQuant](https://github.com/HimanshuMohanty-Git24/RakshaQuant) 
 └────────────────────────────┬────────────────────────────────────┘
                              ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│ AGENT LAYER (LangGraph + Claude)                                 │
-│                                                                  │
-│  🏔️ Market Regime Agent (Sonnet 4.6) ── confidence < 0.3 → END  │
+│ AGENT LAYER (LangGraph + Claude)          ◄── 🧠 MEMORY          │
+│                                               (lessons from      │
+│  🏔️ Market Regime Agent (Sonnet 4.6)          past mistakes      │
+│           ▼                                    injected into     │
+│  📋 Strategy Selection Agent (Sonnet 4.6)      every cycle)      │
 │           ▼                                                      │
-│  📋 Strategy Selection Agent (Sonnet 4.6) ── none → END          │
-│           ▼                                                      │
-│  ✅ Signal Validation Agent (Opus 4.8) ── none valid → END       │
+│  ✅ Signal Validation Agent (Opus 4.8)                            │
 │           ▼                                                      │
 │  🛡️ Risk & Compliance Agent (Opus 4.8) + deterministic limits   │
 └────────────────────────────┬────────────────────────────────────┘
                              ▼
 ┌─────────────────────────────────────────────────────────────────┐
 │ EXECUTION LAYER                                                  │
-│  Position sizing (ATR risk-based) → Alpaca paper / local paper  │
-│  → SQLite trade journal                                          │
+│  Position sizing → Alpaca paper / local paper → SQLite journal  │
+│                                                                  │
+│  🚪 EXIT MANAGER (every cycle, before new entries):              │
+│     stop-loss · take-profit · trailing stop · EOD flatten       │
+└────────────────────────────┬────────────────────────────────────┘
+                             ▼
+┌─────────────────────────────────────────────────────────────────┐
+│ LEARNING LOOP                              📱 NOTIFICATIONS      │
+│  Closed trade → Opus post-mortem →            WhatsApp (Twilio)  │
+│  mistake classification → lesson →            fills, exits,      │
+│  injected into future agent cycles            kill switch, EOD   │
 └──────────────────────────────────────────────────────────────────┘
 ```
 
 **Key design choices**
 
 - **Structured outputs everywhere** — every agent response is parsed into a Pydantic schema via the Anthropic SDK's `messages.parse()`. No JSON string parsing, no malformed responses.
-- **Model routing** — fast/cheap calls (regime, strategy) run on Sonnet 4.6 at low effort; high-stakes calls (validation, risk) run on Opus 4.8 with adaptive thinking.
+- **Model routing** — fast/cheap calls (regime, strategy) run on Sonnet 4.6 at low effort; high-stakes calls (validation, risk, trade post-mortems) run on Opus 4.8 with adaptive thinking.
 - **Prompt caching** — agent system prompts are frozen and marked `cache_control: ephemeral`, so the trading loop reuses cached prefixes.
 - **Fail-safe by default** — if any LLM call fails, signals are *rejected*, never approved. Deterministic hard limits (daily loss, trade count, position caps) run before the risk agent and cannot be overridden by it.
+- **Exits before entries** — every cycle checks stops/targets/trailing stops on open positions *before* considering new trades. Positions are flattened before the close (configurable).
+- **Self-improving** — losing trades get an Opus post-mortem that distinguishes *decision errors* from *bad luck*. Real mistakes become one-sentence lessons that future agent cycles must follow.
 
 ## Setup
 
@@ -107,6 +118,12 @@ All knobs live in `.env` (see `.env.example`):
 | `LQ_MAX_DAILY_TRADES` | `20` | Hard daily trade cap |
 | `LQ_DAILY_LOSS_LIMIT` | `2000` | Daily loss (USD) that triggers the kill switch |
 | `LQ_MAX_OPEN_POSITIONS` | `8` | Max simultaneous positions |
+| `LQ_TRAILING_STOP_PCT` | `0.03` | Trailing stop distance from the position's high |
+| `LQ_EOD_FLATTEN` | `true` | Close all positions before the market close |
+| `LQ_EOD_FLATTEN_MINUTES` | `10` | Minutes before close to start flattening |
+| `LQ_MEMORY_ENABLED` | `true` | Learn from closed trades and inject lessons |
+| `LQ_MEMORY_TOP_N` | `5` | Lessons injected per agent per cycle |
+| `LQ_NOTIFICATIONS_ENABLED` | `false` | WhatsApp alerts via Twilio (see `.env.example`) |
 
 ## Cost expectations
 
@@ -118,14 +135,20 @@ With default settings (60s cycle, ~6.5 trading hours/day ≈ 390 cycles):
 
 Expect roughly **$3–10/day** of API usage depending on market activity. Reduce by raising `LQ_CYCLE_SECONDS` or setting `LQ_MODEL_DEEP=claude-sonnet-4-6`.
 
-## Roadmap (Phase 2)
+## WhatsApp notifications setup (optional, ~5 min)
 
-- 🧠 **Memory & learning loop** — post-trade analysis, mistake classification (Opus), lesson injection into future cycles
+1. Create a free Twilio account: https://www.twilio.com/try-twilio
+2. Console → **Messaging → Try it out → Send a WhatsApp message**
+3. From your phone, send the join code shown there to **+1 415 523 8886** on WhatsApp
+4. In `.env`, set `LQ_NOTIFICATIONS_ENABLED=true` plus the four `TWILIO_*`/`WHATSAPP_TO` values
+
+You'll get WhatsApp messages for: every fill, every position close (with P&L), kill-switch events, and a daily summary at the close.
+
+## Roadmap (Phase 3)
+
 - 📈 **Options trading** — Alpaca options paper trading, chain selection by delta/DTE
-- 🚪 **Exit manager** — trailing stops, take-profit monitoring, end-of-day flattening
-- 📱 **WhatsApp notifications** — trade alerts via Twilio/Meta Cloud API
-- 📊 **Live dashboard** — rich terminal UI with positions, P&L, agent reasoning
 - 🔁 **Backtesting harness** — replay historical days through the full agent pipeline
+- 🌐 **Web dashboard** — live positions/P&L/agent reasoning in the browser
 
 ## Disclaimer
 

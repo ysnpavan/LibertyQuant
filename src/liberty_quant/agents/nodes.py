@@ -36,6 +36,21 @@ def _fmt(obj: Any) -> str:
     return json.dumps(obj, indent=1, sort_keys=True, default=str)
 
 
+def _lessons_block(state: TradingState, agent: str) -> str:
+    """Format the lessons this agent should heed (empty string if none)."""
+    lessons = state.get("memory_lessons", {}).get(agent, [])
+    if not lessons:
+        return ""
+    lines = [
+        f"- [{lesson['severity']}] {lesson['lesson']}"
+        for lesson in lessons
+    ]
+    return (
+        "\n\n## Lessons from past mistakes (follow these — they were learned from real losses)\n"
+        + "\n".join(lines)
+    )
+
+
 # =====================================================================
 # 1. Market Regime Agent (fast model)
 # =====================================================================
@@ -51,7 +66,8 @@ def market_regime_node(state: TradingState) -> dict[str, Any]:
         "## Benchmark indicators (SPY/QQQ/IWM)\n"
         f"{_fmt(benchmarks)}\n\n"
         "## Active stock indicators\n"
-        f"{_fmt(stocks)}\n\n"
+        f"{_fmt(stocks)}"
+        f"{_lessons_block(state, 'regime')}\n\n"
         "Classify the current market regime."
     )
 
@@ -110,6 +126,13 @@ def _fallback_regime(state: TradingState, error: str) -> dict[str, Any]:
 def strategy_selection_node(state: TradingState) -> dict[str, Any]:
     logger.info("[strategy] selecting strategies for regime=%s...", state["regime"])
 
+    perf = state.get("strategy_performance", {})
+    perf_block = (
+        f"\n\n## Realized strategy performance (from this system's own closed trades)\n{_fmt(perf)}"
+        if perf
+        else ""
+    )
+
     context = (
         "## Current regime\n"
         f"- Regime: {state['regime']}\n"
@@ -118,7 +141,9 @@ def strategy_selection_node(state: TradingState) -> dict[str, Any]:
         "## Today's stats\n"
         f"{_fmt(state['daily_stats'])}\n\n"
         "## Raw signal counts by strategy\n"
-        f"{_fmt(_signal_counts(state['signals']))}\n\n"
+        f"{_fmt(_signal_counts(state['signals']))}"
+        f"{perf_block}"
+        f"{_lessons_block(state, 'strategy')}\n\n"
         "Select which strategies should be active this cycle."
     )
 
@@ -185,7 +210,8 @@ def signal_validation_node(state: TradingState) -> dict[str, Any]:
         "## Candidate signals\n"
         f"{_fmt(candidates)}\n\n"
         "## Current portfolio\n"
-        f"{_fmt(state['portfolio'])}\n\n"
+        f"{_fmt(state['portfolio'])}"
+        f"{_lessons_block(state, 'validation')}\n\n"
         "Validate each candidate signal: approve or reject with adjusted confidence."
     )
 
@@ -266,7 +292,8 @@ def risk_compliance_node(state: TradingState) -> dict[str, Any]:
         f"{_fmt(state['daily_stats'])}\n\n"
         "## Configured risk limits\n"
         f"{_fmt(risk_limits)}\n\n"
-        f"## Market regime\n- {state['regime']} (confidence {state['regime_confidence']:.2f})\n\n"
+        f"## Market regime\n- {state['regime']} (confidence {state['regime_confidence']:.2f})"
+        f"{_lessons_block(state, 'risk')}\n\n"
         "Give the final approve/deny for each trade and decide on the kill switch."
     )
 

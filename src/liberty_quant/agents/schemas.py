@@ -66,3 +66,29 @@ class RiskAssessment(BaseModel):
     )
     warnings: list[str]
     reasoning: str
+
+
+MistakeCategory = Literal[
+    "regime_mismatch",     # traded against the actual market regime
+    "strategy_mismatch",   # wrong strategy for the conditions
+    "poor_timing",         # right idea, bad entry timing
+    "bad_entry",           # entry contradicted by indicators
+    "wrong_sizing",        # position too large/small for the setup
+    "overtrading",         # too many trades / correlated positions
+    "bad_exit",            # exit logic failed (stop too tight/wide, gave back gains)
+    "no_mistake",          # sound decision, unlucky outcome
+]
+
+
+class TradePostMortem(BaseModel):
+    """Output of the trade post-mortem (learning loop)."""
+
+    is_mistake: bool = Field(
+        description="True if a decision error was made; False if the loss was just variance on a sound decision"
+    )
+    category: MistakeCategory
+    severity: Literal["low", "medium", "high", "critical"]
+    lesson: str = Field(
+        description="One actionable sentence future agents should follow, e.g. 'Do not take mean-reversion BUYs when the regime is trending_down with confidence > 0.7'"
+    )
+    reasoning: str

@@ -86,6 +86,8 @@ def run_trading_cycle(
     signals: list[dict[str, Any]],
     portfolio: dict[str, Any],
     daily_stats: dict[str, Any],
+    memory_lessons: dict[str, list[dict[str, Any]]] | None = None,
+    strategy_performance: dict[str, dict[str, Any]] | None = None,
 ) -> TradingState:
     """Run one full decision cycle through the agent graph."""
     state = create_initial_state(
@@ -94,6 +96,8 @@ def run_trading_cycle(
         signals=signals,
         portfolio=portfolio,
         daily_stats=daily_stats,
+        memory_lessons=memory_lessons,
+        strategy_performance=strategy_performance,
     )
 
     logger.info("=== Cycle %s: %d signals in ===", cycle_id, len(signals))

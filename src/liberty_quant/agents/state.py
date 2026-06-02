@@ -40,6 +40,12 @@ class TradingState(TypedDict):
     risk_warnings: list[str]
     kill_switch: bool
 
+    # --- Memory & learning ---
+    # agent name -> list of lesson dicts (injected before the cycle runs)
+    memory_lessons: dict[str, list[dict[str, Any]]]
+    # strategy -> performance stats from closed trades (feeds strategy selection)
+    strategy_performance: dict[str, dict[str, Any]]
+
     # --- Metadata ---
     cycle_id: str
     errors: list[str]
@@ -52,6 +58,8 @@ def create_initial_state(
     signals: list[dict[str, Any]],
     portfolio: dict[str, Any],
     daily_stats: dict[str, Any],
+    memory_lessons: dict[str, list[dict[str, Any]]] | None = None,
+    strategy_performance: dict[str, dict[str, Any]] | None = None,
 ) -> TradingState:
     return TradingState(
         indicators=indicators,
@@ -69,6 +77,8 @@ def create_initial_state(
         risk_rejected=[],
         risk_warnings=[],
         kill_switch=False,
+        memory_lessons=memory_lessons or {},
+        strategy_performance=strategy_performance or {},
         cycle_id=cycle_id,
         errors=[],
     )

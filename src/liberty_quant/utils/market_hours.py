@@ -37,6 +37,34 @@ def is_market_open(broker=None) -> bool:
     return is_market_open_fallback()
 
 
+def minutes_to_close(broker=None, now: datetime | None = None) -> float | None:
+    """Minutes until today's market close, or None if the market is closed.
+
+    Uses the Alpaca clock when available (handles half-days); otherwise assumes
+    a 16:00 ET close.
+    """
+    if broker is not None and hasattr(broker, "next_market_times"):
+        try:
+            from datetime import datetime as dt
+
+            clock_open = broker.is_market_open()
+            if not clock_open:
+                return None
+            _, next_close = broker.next_market_times()
+            if next_close:
+                close_dt = dt.fromisoformat(str(next_close).replace("Z", "+00:00"))
+                now_utc = (now or datetime.now(tz=ET)).astimezone(close_dt.tzinfo)
+                return max(0.0, (close_dt - now_utc).total_seconds() / 60)
+        except Exception as e:
+            logger.warning("Could not compute minutes to close from Alpaca: %s", e)
+
+    now_et = (now or datetime.now(tz=ET)).astimezone(ET)
+    if not is_market_open_fallback(now_et):
+        return None
+    close_et = now_et.replace(hour=16, minute=0, second=0, microsecond=0)
+    return max(0.0, (close_et - now_et).total_seconds() / 60)
+
+
 def seconds_to_next_open_estimate(now: datetime | None = None) -> int:
     """Rough seconds until the next weekday 9:30 ET open (for sleep scheduling).
 

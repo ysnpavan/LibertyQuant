@@ -74,6 +74,56 @@ class Settings(BaseSettings):
     max_open_positions: int = Field(default=8, alias="LQ_MAX_OPEN_POSITIONS", ge=1)
 
     # ===========================================
+    # Exit management
+    # ===========================================
+    trailing_stop_pct: float = Field(
+        default=0.03,
+        alias="LQ_TRAILING_STOP_PCT",
+        gt=0,
+        le=0.5,
+        description="Trailing stop distance as fraction of the position's high-water price",
+    )
+    eod_flatten: bool = Field(
+        default=True,
+        alias="LQ_EOD_FLATTEN",
+        description="Close all positions near the end of the trading day",
+    )
+    eod_flatten_minutes: int = Field(
+        default=10,
+        alias="LQ_EOD_FLATTEN_MINUTES",
+        ge=1,
+        le=60,
+        description="Minutes before market close to flatten positions",
+    )
+
+    # ===========================================
+    # Memory / learning
+    # ===========================================
+    memory_enabled: bool = Field(default=True, alias="LQ_MEMORY_ENABLED")
+    memory_top_n: int = Field(
+        default=5,
+        alias="LQ_MEMORY_TOP_N",
+        ge=1,
+        le=20,
+        description="Number of lessons injected into agent context per cycle",
+    )
+
+    # ===========================================
+    # Notifications (WhatsApp via Twilio)
+    # ===========================================
+    notifications_enabled: bool = Field(default=False, alias="LQ_NOTIFICATIONS_ENABLED")
+    twilio_account_sid: str | None = Field(default=None, description="Twilio account SID")
+    twilio_auth_token: SecretStr | None = Field(default=None, description="Twilio auth token")
+    twilio_whatsapp_from: str | None = Field(
+        default=None,
+        description="Twilio WhatsApp sender, e.g. 'whatsapp:+14155238886' (sandbox number)",
+    )
+    whatsapp_to: str | None = Field(
+        default=None,
+        description="Your WhatsApp number, e.g. 'whatsapp:+91XXXXXXXXXX'",
+    )
+
+    # ===========================================
     # Storage / logging
     # ===========================================
     db_path: str = Field(default="data/liberty_quant.db", alias="LQ_DB_PATH")
@@ -91,6 +141,21 @@ class Settings(BaseSettings):
                 f"LQ_RISK_PER_TRADE ({self.risk_per_trade}) must not exceed "
                 f"LQ_MAX_POSITION_PCT ({self.max_position_pct})"
             )
+        if self.notifications_enabled:
+            missing = [
+                name
+                for name, value in (
+                    ("TWILIO_ACCOUNT_SID", self.twilio_account_sid),
+                    ("TWILIO_AUTH_TOKEN", self.twilio_auth_token),
+                    ("TWILIO_WHATSAPP_FROM", self.twilio_whatsapp_from),
+                    ("WHATSAPP_TO", self.whatsapp_to),
+                )
+                if not value
+            ]
+            if missing:
+                raise ValueError(
+                    f"LQ_NOTIFICATIONS_ENABLED=true requires: {', '.join(missing)}"
+                )
         Path(self.db_path).parent.mkdir(parents=True, exist_ok=True)
         return self
 
