@@ -1,5 +1,7 @@
 # LibertyQuant 🦅
 
+[![CI](https://github.com/ysnpavan/LibertyQuant/actions/workflows/ci.yml/badge.svg)](https://github.com/ysnpavan/LibertyQuant/actions/workflows/ci.yml) [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE) ![Python](https://img.shields.io/badge/python-3.11%20%7C%203.12-blue) ![Tests](https://img.shields.io/badge/tests-62%20passing-brightgreen)
+
 **Agentic AI trading system for US markets** — a pipeline of Claude-powered agents (Market Regime → Strategy Selection → Signal Validation → Risk & Compliance) that observes US equities/ETFs, generates technical signals, and paper-trades through Alpaca.
 
 Inspired by [RakshaQuant](https://github.com/HimanshuMohanty-Git24/RakshaQuant) (Indian NSE), rebuilt for US markets with Claude as the decision engine.
@@ -167,3 +169,7 @@ You'll get Telegram messages for: every fill, every position close (with P&L), k
 ## Disclaimer
 
 This software is for educational purposes. Markets involve risk of loss. The authors accept no liability for trading losses. Always paper trade first; never deploy capital you cannot afford to lose.
+
+## License
+
+[MIT](LICENSE) © 2026 Siva Naga Pavan Yalavarthi
